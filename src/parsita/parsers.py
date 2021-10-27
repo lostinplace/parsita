@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import re
 from inspect import signature
 from types import MethodType
@@ -816,9 +817,10 @@ class ConversionParser(Generic[Input, Output, Convert], Parser[Input, Convert]):
     def consume(self, reader: Reader[Input]) -> Status[Input, Convert]:
         status = self.parser.consume(reader)
         if isinstance(status, Continue):
-            converter_signature = signature(self.converter)
-            if 'separators' in converter_signature.parameters and status.value and hasattr(status.value, 'separators'):
-                return Continue(status.remainder, self.converter(status.value, separators=status.value.separators)).merge(status)
+            if inspect.isfunction(self.converter):
+                converter_signature = signature(self.converter)
+                if 'separators' in converter_signature.parameters and status.value and hasattr(status.value, 'separators'):
+                    return Continue(status.remainder, self.converter(status.value, separators=status.value.separators)).merge(status)
             return Continue(status.remainder, self.converter(status.value)).merge(status)
 
         else:
