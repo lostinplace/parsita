@@ -738,7 +738,8 @@ class SeparatedList(list):
     separators: List[Any] = None
 
 
-class RepeatedSeparatedParser_2(Generic[Input, Output], Parser[Input, Sequence[Output]]):
+class RepeatedSeparatedParser2(Generic[Input, Output], Parser[Input, Sequence[Output]]):
+
     def __init__(self, parser: Parser[Input, Output], separator: Parser[Input, Output]):
         super().__init__()
         self.parser = parser
@@ -762,6 +763,7 @@ class RepeatedSeparatedParser_2(Generic[Input, Output], Parser[Input, Sequence[O
             separator_status = self.separator.consume(remainder).merge(status)
             if not isinstance(separator_status, Continue):
                 break
+
             remainder = separator_status.remainder
             active_separator = separator_status.value
             separators.append(active_separator)
@@ -804,7 +806,7 @@ def repsep(
         parser = lit(parser)
     if isinstance(separator, str):
         separator = lit(separator)
-    return RepeatedSeparatedParser_2(parser, separator)
+    return RepeatedSeparatedParser2(parser, separator)
 
 
 class ConversionParser(Generic[Input, Output, Convert], Parser[Input, Convert]):

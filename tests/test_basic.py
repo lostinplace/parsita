@@ -3,7 +3,7 @@ from typing import List
 import pytest
 
 from parsita import *
-from parsita.parsers import RepeatedSeparatedParser_2, SeparatedList
+from parsita.parsers import RepeatedSeparatedParser2, SeparatedList
 from parsita.util import splat
 
 
@@ -335,7 +335,7 @@ def test_repeated_separated_nonliteral():
 
 
 def test_repeated_separated_with_separators_but_keeping_separators_basic():
-    test_parser = RepeatedSeparatedParser_2(lit('a'), lit('b'))
+    test_parser = RepeatedSeparatedParser2(lit('a'), lit('b'))
     test_content = 'ab' * 4 + 'a'
     expected = [
         ('a', 'b'),
@@ -361,7 +361,7 @@ def test_repeated_separated_with_separators_but_keeping_separators_basic():
 
 
 def test_repeated_separated_with_separators_but_keeping_separators_nested():
-    test_parser = 'start:' & RepeatedSeparatedParser_2(lit('a'), lit('b')) & ':stop'
+    test_parser = 'start:' & RepeatedSeparatedParser2(lit('a'), lit('b')) & ':stop'
     test_content = 'start:' + 'ab' * 4 + 'a' + ':stop'
     expected = [
         'start:',
