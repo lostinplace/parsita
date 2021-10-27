@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from inspect import signature
 from types import MethodType
 from typing import Any, Callable, Generic, List, Optional, Sequence, Union
 
@@ -732,6 +733,59 @@ class RepeatedSeparatedParser(Generic[Input, Output], Parser[Input, Sequence[Out
         return self.name_or_nothing() + f"repsep({self.parser.name_or_repr()}, {self.separator.name_or_repr()})"
 
 
+class SeparatedList(list):
+    separators: List[Any] = None
+
+
+class RepeatedSeparatedParser_2(Generic[Input, Output], Parser[Input, Sequence[Output]]):
+    def __init__(self, parser: Parser[Input, Output], separator: Parser[Input, Output]):
+        super().__init__()
+        self.parser = parser
+        self.separator = separator
+
+    def consume(self, reader: Reader[Input]):
+        status = self.parser.consume(reader)
+
+        if not isinstance(status, Continue):
+            return Continue(reader, []).merge(status)
+        else:
+            output = [status.value]
+            separators = []
+            remainder = status.remainder
+            while True:
+                # If the separator matches, but the parser does not, the remainder from the last successful parser step
+                # must be used, not the remainder from any separator. That is why the parser starts from the remainder
+                # on the status, but remainder is not updated until after the parser succeeds.
+                status = self.separator.consume(remainder).merge(status)
+
+                if isinstance(status, Continue):
+                    separators.append(status.value)
+                    status = self.parser.consume(status.remainder).merge(status)
+                    if isinstance(status, Continue):
+                        if remainder.position == status.remainder.position:
+                            raise RuntimeError(remainder.recursion_error(str(self)))
+
+                        remainder = status.remainder
+                        output.append(status.value)
+                    else:
+                        break
+                else:
+                    break
+
+        test_list = SeparatedList(output)
+        test_list.separators = separators
+
+        result_status = Continue(remainder, test_list).merge(status)
+        result_status.separators = separators
+        result_status.value.separators = separators
+
+        return result_status
+
+    def __repr__(self):
+        return self.name_or_nothing() + f"repsep({self.parser.name_or_repr()}, {self.separator.name_or_repr()})"
+
+
+
 def repsep(
     parser: Union[Parser, Sequence[Input]], separator: Union[Parser, Sequence[Input]]
 ) -> RepeatedSeparatedParser:
@@ -761,9 +815,12 @@ class ConversionParser(Generic[Input, Output, Convert], Parser[Input, Convert]):
 
     def consume(self, reader: Reader[Input]) -> Status[Input, Convert]:
         status = self.parser.consume(reader)
-
         if isinstance(status, Continue):
+            converter_signature = signature(self.converter)
+            if 'separators' in converter_signature.parameters and status.value and hasattr(status.value, 'separators'):
+                return Continue(status.remainder, self.converter(status.value, separators=status.value.separators)).merge(status)
             return Continue(status.remainder, self.converter(status.value)).merge(status)
+
         else:
             return status
 

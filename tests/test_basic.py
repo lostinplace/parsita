@@ -1,6 +1,10 @@
+from typing import List
+
 import pytest
 
 from parsita import *
+from parsita.parsers import RepeatedSeparatedParser_2, SeparatedList
+from parsita.util import splat
 
 
 def test_literals():
@@ -329,6 +333,64 @@ def test_repeated_separated_nonliteral():
     assert str(TestParsers.cs) == "cs = repsep('c', opt(','))"
 
 
+def test_repeated_separated_with_separators_but_keeping_separators_basic():
+    test_parser = RepeatedSeparatedParser_2(lit('a'), lit('b'))
+    test_content = 'ab' * 4 + 'a'
+    expected = [
+        ('a', 'b'),
+        ('a', 'b'),
+        ('a', 'b'),
+        ('a', 'b'),
+        ('a', None)
+    ]
+
+    def conversion(values: [List[str]], separators: List[str]):
+        """
+        the 'separators' keyword arg automatically detects separators when available
+        """
+        actual_values = values
+        actual_separators = separators + [None]
+        return zip(actual_values, actual_separators)
+
+    test_parser_2 = test_parser > conversion
+    result = test_parser_2.parse(test_content)
+    actual = list(result.value)
+
+    assert actual == expected
+
+
+def test_repeated_separated_with_separators_but_keeping_separators_nested():
+    test_parser = 'start:' & RepeatedSeparatedParser_2(lit('a'), lit('b')) & ':stop'
+    test_content = 'start:' + 'ab' * 4 + 'a' + ':stop'
+    expected = [
+        'start:',
+        ('a', 'b'),
+        ('a', 'b'),
+        ('a', 'b'),
+        ('a', 'b'),
+        ('a', None),
+        ':stop'
+    ]
+
+    def conversion(values: [List[str]]):
+        actual_values = values[1]
+        assert isinstance(values[1], SeparatedList)
+        actual_separators = actual_values.separators + [None]
+        zipped = list(zip(actual_values, actual_separators))
+        result = [
+            values[0],
+            *zipped,
+            values[-1]
+        ]
+        return result
+
+    test_parser_2 = test_parser > conversion
+    result = test_parser_2.parse(test_content)
+    actual = list(result.value)
+
+    assert actual == expected
+
+
 @pytest.mark.timeout(2)
 def test_infinite_recursion_protection():
     class TestParsers(GeneralParsers):
@@ -342,8 +404,8 @@ def test_infinite_recursion_protection():
         with pytest.raises(
             RuntimeError,
             match="Infinite recursion detected in "
-            r"bad_rep1?(sep)? = rep1?(sep)?\(opt\('a'\)(, opt\(':'\))?\); "
-            "empty string was matched and will be matched forever at index 2 before b",
+                  r"bad_rep1?(sep)? = rep1?(sep)?\(opt\('a'\)(, opt\(':'\))?\); "
+                  "empty string was matched and will be matched forever at index 2 before b",
         ):
             parser.parse("aab")
 
@@ -352,8 +414,8 @@ def test_infinite_recursion_protection():
         with pytest.raises(
             RuntimeError,
             match="Infinite recursion detected in "
-            r"bad_rep1?(sep)? = rep1?(sep)?\(opt\('a'\)(, opt\(':'\))?\); "
-            "empty string was matched and will be matched forever at end of source",
+                  r"bad_rep1?(sep)? = rep1?(sep)?\(opt\('a'\)(, opt\(':'\))?\); "
+                  "empty string was matched and will be matched forever at end of source",
         ):
             parser.parse("aa")
 
