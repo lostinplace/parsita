@@ -326,7 +326,8 @@ def test_repeated_separated_nonliteral():
     assert TestParsers.bs.parse("b,bb") == Success(["b", "b", "b"])
     assert TestParsers.bs.parse("b") == Success(["b"])
     assert TestParsers.bs.parse("") == Failure("Expected b but found end of source")
-    assert TestParsers.cs.parse("cc,c") == Success(["c", "c", "c"])
+    result = TestParsers.cs.parse("cc,c")
+    assert result == Success(["c", "c", "c"])
     assert TestParsers.cs.parse("c") == Success(["c"])
     assert TestParsers.cs.parse("") == Success([])
     assert str(TestParsers.bs) == "bs = rep1sep('b', opt(','))"

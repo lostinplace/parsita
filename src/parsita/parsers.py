@@ -745,38 +745,37 @@ class RepeatedSeparatedParser_2(Generic[Input, Output], Parser[Input, Sequence[O
         self.separator = separator
 
     def consume(self, reader: Reader[Input]):
+        output = []
+        separators = []
+        active_separator = None
+        remainder = reader
         status = self.parser.consume(reader)
+        while isinstance(status, Continue):
+            active_separator = None
+            if remainder.position == status.remainder.position:
+                raise RuntimeError(remainder.recursion_error(str(self)))
 
-        if not isinstance(status, Continue):
-            return Continue(reader, []).merge(status)
-        else:
-            output = [status.value]
-            separators = []
             remainder = status.remainder
-            while True:
-                # If the separator matches, but the parser does not, the remainder from the last successful parser step
-                # must be used, not the remainder from any separator. That is why the parser starts from the remainder
-                # on the status, but remainder is not updated until after the parser succeeds.
-                status = self.separator.consume(remainder).merge(status)
+            output.append(status.value)
 
-                if isinstance(status, Continue):
-                    separators.append(status.value)
-                    status = self.parser.consume(status.remainder).merge(status)
-                    if isinstance(status, Continue):
-                        if remainder.position == status.remainder.position:
-                            raise RuntimeError(remainder.recursion_error(str(self)))
+            # check for separator
+            separator_status = self.separator.consume(remainder).merge(status)
+            if not isinstance(separator_status, Continue):
+                break
+            remainder = separator_status.remainder
+            active_separator = separator_status.value
+            separators.append(active_separator)
 
-                        remainder = status.remainder
-                        output.append(status.value)
-                    else:
-                        break
-                else:
-                    break
+            status = self.parser.consume(remainder).merge(status)
 
-        test_list = SeparatedList(output)
-        test_list.separators = separators
+        # note that this is tricksy, any separator that is truthy will trigger failure state
+        if active_separator:
+            return status
 
-        result_status = Continue(remainder, test_list).merge(status)
+        output_list = SeparatedList(output)
+        output_list.separators = separators
+
+        result_status = Continue(remainder, output_list).merge(status)
         result_status.separators = separators
         result_status.value.separators = separators
 
@@ -805,7 +804,7 @@ def repsep(
         parser = lit(parser)
     if isinstance(separator, str):
         separator = lit(separator)
-    return RepeatedSeparatedParser(parser, separator)
+    return RepeatedSeparatedParser_2(parser, separator)
 
 
 class ConversionParser(Generic[Input, Output, Convert], Parser[Input, Convert]):
